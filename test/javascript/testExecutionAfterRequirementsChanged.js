@@ -12,9 +12,11 @@ const deployToken = () => {
 
 const utils = require('./utils')
 const ONE_DAY = 24*3600
+const deposit = 1000
+const transfer = 100
 
 contract('MultiSigWallet', (accounts) => {
-    let multisigInstance
+    let multisigInstance, tokenInstance, multisigInstance2
     const requiredConfirmations = 2
 
     beforeEach(async () => {
@@ -23,16 +25,19 @@ contract('MultiSigWallet', (accounts) => {
         multisigInstance = await deployMultisig(tokenInstance.address, [accounts[0], accounts[1], accounts[2]], requiredConfirmations)
         assert.ok(multisigInstance)
         assert.equal(await multisigInstance.getTokenContract(), tokenInstance.address)
+
+        multisigInstance2 = await deployMultisig(tokenInstance.address, [accounts[4], accounts[5], accounts[6]], requiredConfirmations)
+        assert.ok(multisigInstance2)
+        assert.equal(await multisigInstance2.getTokenContract(), tokenInstance.address)
+
+
+        // Fund multisig 1 with tokens
+        const sendTokensData = tokenInstance.contract.issueTokens.getData(multisigInstance.address, deposit)
+        fundingTx = await tokenInstance.issueTokens(multisigInstance.address, deposit)
+        assert.equal(await tokenInstance.balanceOf(multisigInstance.address), deposit)
     })
 
-    it('test execution after requirements changed', async () => {
-        const deposit = 1000
-        
-        // Send money to wallet contract
-        await new Promise((resolve, reject) => web3.eth.sendTransaction({to: multisigInstance.address, value: deposit, from: accounts[0]}, e => (e ? reject(e) : resolve())))
-        const balance = await utils.balanceOf(web3, multisigInstance.address)
-        assert.equal(balance.valueOf(), deposit)
-        
+    it('test execution after requirements changed', async () => {        
         // Add owner wa_4
         const addOwnerData = multisigInstance.contract.addOwner.getData(accounts[3])
         const transactionId = utils.getParamFromTxEvent(
@@ -89,4 +94,33 @@ contract('MultiSigWallet', (accounts) => {
             [transactionId, transactionId2]
         )
     })
+
+    it('test execution token transfer', async () => {
+        const transferId = utils.getParamFromTxEvent(
+            await multisigInstance.submitTransfer(multisigInstance2.address, transfer, {from: accounts[0]}),
+            // Fix this
+            'transactionId',
+            null,
+            'Submission'
+        )
+
+
+        // There is 1 pending transfer
+        const excludePending = false
+        const includePending = true
+        const excludeExecuted = false
+        const includeExecuted = true
+        assert.deepEqual(
+            await multisigInstance.getTransferIds(0, 1, includePending, excludeExecuted),
+            [transferId]
+        )
+
+        await multisigInstance.confirmTransfer(transferId, {from: accounts[1]})
+        assert.equal(await tokenInstance.balanceOf(multisigInstance.address), deposit-transfer)
+        assert.equal(await tokenInstance.balanceOf(multisigInstance2.address), transfer)
+
+
+    })
+
+
 })

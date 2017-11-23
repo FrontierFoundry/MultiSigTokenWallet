@@ -47,11 +47,11 @@ contract MultiSigWalletWithDailyLimit is MultiSigWallet {
     function executeTransaction(uint transactionId)
         public
         ownerExists(msg.sender)
-        confirmed(transactionId, msg.sender)
-        notExecuted(transactionId)
+        confirmed(transactionId, msg.sender, false)
+        notExecuted(transactionId, false)
     {
         Transaction tx = transactions[transactionId];
-        bool _confirmed = isConfirmed(transactionId);
+        bool _confirmed = isConfirmedTransaction(transactionId);
         if (_confirmed || tx.data.length == 0 && isUnderLimit(tx.value)) {
             tx.executed = true;
             if (!_confirmed)
