@@ -19,8 +19,8 @@ contract('MultiSigWalletWithDailyLimit', (accounts) => {
     const requiredConfirmations = 2
 
     beforeEach(async () => {
-        tokenInstance = await deployToken();
-        assert.ok(tokenInstance);
+        tokenInstance = await deployToken()
+        assert.ok(tokenInstance)
         multisigInstance = await deployMultisig(tokenInstance.address, [accounts[0], accounts[1], accounts[2]], requiredConfirmations, dailyLimit)
         assert.ok(multisigInstance)
         assert.equal(await multisigInstance.getTokenContract(), tokenInstance.address);

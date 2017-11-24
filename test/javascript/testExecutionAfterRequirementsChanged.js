@@ -32,8 +32,6 @@ contract('MultiSigWallet', (accounts) => {
         }
 
         assert.throws(test, 'VM Exception while processing transaction: revert');
-
-
         const balance = await utils.balanceOf(web3, multisigInstance.address)
         assert.equal(balance.valueOf(), 0)
         
@@ -52,20 +50,26 @@ contract('MultiSigWallet', (accounts) => {
         assert.equal(await multisigInstance.getTransactionCount(true, true), 0)
     })
 
-
     it('multisig can prepare tokens transfer', async () => {
-        const transferToken = tokenInstance.contract.transfer.getData(accounts[3], deposit)
-        await multisigInstance.submitTransaction(tokenInstance.address, 0, transferToken, {from: accounts[0]}),
+        await multisigInstance.submitTransaction(accounts[1], deposit, "213123", true, {from: accounts[0]})
         assert.equal(await multisigInstance.getTransactionCount(true, true), 1)
     })
 
+    it('multisig can not prepare zero token transfer', async () => {
+        try {
+            await multisigInstance.submitTransaction(accounts[1], 0, null, true ,{from: accounts[0]})
+        } catch (e) {
+            // Need better test design for this case but wrapper just awfully fails
+        }
+        assert.equal(await multisigInstance.getTransactionCount(true, true), 0)
+    })
 
     it('test execution after requirements changed', async () => {
         const deposit = 1000        
         // Add owner wa_4
         const addOwnerData = multisigInstance.contract.addOwner.getData(accounts[3])
         const transactionId = utils.getParamFromTxEvent(
-            await multisigInstance.submitTransaction(multisigInstance.address, 0, addOwnerData, {from: accounts[0]}),
+            await multisigInstance.submitTransaction(multisigInstance.address, 0, addOwnerData, false, {from: accounts[0]}),
             'transactionId',
             null,
             'Submission'
@@ -87,7 +91,7 @@ contract('MultiSigWallet', (accounts) => {
 
         // Submit successfully
         const transactionId2 = utils.getParamFromTxEvent(
-            await multisigInstance.submitTransaction(multisigInstance.address, 0, updateRequirementData, {from: accounts[0]}),
+            await multisigInstance.submitTransaction(multisigInstance.address, 0, updateRequirementData, false, {from: accounts[0]}),
             'transactionId',
             null,
             'Submission'
