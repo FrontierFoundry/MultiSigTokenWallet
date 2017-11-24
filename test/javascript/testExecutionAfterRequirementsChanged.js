@@ -43,7 +43,7 @@ contract('MultiSigWallet', (accounts) => {
         const transferAnotherToken = tokenInstance2.contract.transfer.getData(accounts[3], deposit)
 
         try {
-            await multisigInstance.submitTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]})
+            await multisigInstance.submitTransaction(tokenInstance2.address, 0, transferAnotherToken, false, {from: accounts[0]})
         } catch (e) {
             // Need better test design for this case but wrapper just awfully fails
         }

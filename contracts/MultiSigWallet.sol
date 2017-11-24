@@ -309,6 +309,7 @@ contract MultiSigWallet {
         }
         else {
             require(value == 0);
+            require(destination == address(this));
         }
         transactionId = addTransaction(destination, value, data, isTokenTransfer);
         confirmTransaction(transactionId);
