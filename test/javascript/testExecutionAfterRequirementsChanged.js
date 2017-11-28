@@ -12,7 +12,6 @@ const deployToken = () => {
 
 const utils = require('./utils')
 const ONE_DAY = 24*3600
-const deposit = 1000
 
 contract('MultiSigWallet', (accounts) => {
     let multisigInstance
@@ -25,40 +24,6 @@ contract('MultiSigWallet', (accounts) => {
         assert.ok(multisigInstance)
         assert.equal(await multisigInstance.getTokenContract(), tokenInstance.address)
     })
-
-    it('multisig do not receive ETC', async () => {
-        var test = function() {
-          web3.eth.sendTransaction({to: multisigInstance.address, value: deposit, from: accounts[0]})
-        }
-
-        assert.throws(test, 'VM Exception while processing transaction: revert');
-
-
-        const balance = await utils.balanceOf(web3, multisigInstance.address)
-        assert.equal(balance.valueOf(), 0)
-        
-    })
-
-
-    it('multisig can not prepare call for random contract', async () => {
-        tokenInstance2 = await deployToken()
-        const transferAnotherToken = tokenInstance2.contract.transfer.getData(accounts[3], deposit)
-
-        try {
-            await multisigInstance.submitTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]})
-        } catch (e) {
-            // Need better test design for this case but wrapper just awfully fails
-        }
-        assert.equal(await multisigInstance.getTransactionCount(true, true), 0)
-    })
-
-
-    it('multisig can prepare tokens transfer', async () => {
-        const transferToken = tokenInstance.contract.transfer.getData(accounts[3], deposit)
-        await multisigInstance.submitTransaction(tokenInstance.address, 0, transferToken, {from: accounts[0]}),
-        assert.equal(await multisigInstance.getTransactionCount(true, true), 1)
-    })
-
 
     it('test execution after requirements changed', async () => {
         const deposit = 1000        
