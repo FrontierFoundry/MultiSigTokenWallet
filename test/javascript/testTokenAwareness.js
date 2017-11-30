@@ -41,11 +41,10 @@ contract('MultiSigWallet', (accounts) => {
         tokenInstance2 = await deployToken()
         const transferAnotherToken = tokenInstance2.contract.transfer.getData(accounts[3], deposit)
 
-        try {
-            await multisigInstance.submitTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]})
-        } catch (e) {
-            // Need better test design for this case but wrapper just awfully fails
-        }
+        multisigInstance.submitTransaction.sendTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]})
+            .catch(function(error, result){
+                assert.equal(error.message, 'VM Exception while processing transaction: invalid opcode');
+            })
         assert.equal(await multisigInstance.getTransactionCount(true, true), 0)
     })
 
