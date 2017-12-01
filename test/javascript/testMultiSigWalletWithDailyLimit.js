@@ -116,15 +116,7 @@ describe.skip('MultiSigWalletWithDailyLimit', () => {
             await utils.increaseTimestamp(web3, ONE_DAY+1)
             assert.equal(dailyLimitUpdated, (await multisigInstance.calcMaxWithdraw()).toNumber())
 
-            // Execute transaction should work now but fails, because it is triggered from a non owner address
-            utils.assertThrowsAsynchronously(
-                () => multisigInstance.executeTransaction(transactionIdFailed, {from: accounts[9]})
-            )
-            // Execute transaction also fails if the sender is a wallet owner but didn't confirm the transaction first
-            utils.assertThrowsAsynchronously(
-                () => multisigInstance.executeTransaction(transactionIdFailed, {from: accounts[0]})
-            )
-            // But it works with the right sender
+            // Works
             await multisigInstance.executeTransaction(transactionIdFailed, {from: accounts[1]})
             assert.ok((await multisigInstance.transactions(transactionIdFailed))[3])
 
@@ -169,11 +161,6 @@ describe.skip('MultiSigWalletWithDailyLimit', () => {
             assert.equal(
                 dailyLimitUpdated-value2,
                 await multisigInstance.calcMaxWithdraw()
-            )
-            // Try to execute a transaction tha does not exist fails
-            const unknownTransactionId = 999
-            utils.assertThrowsAsynchronously(
-                () => multisigInstance.executeTransaction(unknownTransactionId, {from: accounts[0]})
             )
         })
     })

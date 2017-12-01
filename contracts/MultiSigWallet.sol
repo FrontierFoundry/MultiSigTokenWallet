@@ -185,6 +185,7 @@ contract MultiSigWallet {
         public
         returns (uint transactionId)
     {
+        /// Should run token transfers or meta-functions on itself
         require(destination == tokenContract || destination == address(this));
         transactionId = addTransaction(destination, value, data);
         confirmTransaction(transactionId);

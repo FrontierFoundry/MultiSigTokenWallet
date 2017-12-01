@@ -40,11 +40,13 @@ contract('MultiSigWallet', (accounts) => {
     it('multisig can not prepare call for random contract', async () => {
         tokenInstance2 = await deployToken()
         const transferAnotherToken = tokenInstance2.contract.transfer.getData(accounts[3], deposit)
+    
+        utils.assertThrowsAsynchronously(
+            () => multisigInstance.submitTransaction
+            .sendTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]}),
+            'VM Exception while processing transaction: invalid opcode'
+        )
 
-        multisigInstance.submitTransaction.sendTransaction(tokenInstance2.address, 0, transferAnotherToken, {from: accounts[0]})
-            .catch(function(error, result){
-                assert.equal(error.message, 'VM Exception while processing transaction: invalid opcode');
-            })
         assert.equal(await multisigInstance.getTransactionCount(true, true), 0)
     })
 
