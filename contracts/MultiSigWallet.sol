@@ -1,4 +1,4 @@
-pragma solidity 0.4.15;
+pragma solidity 0.4.18;
 
 
 /// @title Multisignature wallet - Allows multiple parties to agree on transactions before execution.
@@ -32,6 +32,7 @@ contract MultiSigWallet {
     address[] public owners;
     uint public required;
     uint public transactionCount;
+    address tokenContract;
 
     struct Transaction {
         address destination;
@@ -44,50 +45,42 @@ contract MultiSigWallet {
      *  Modifiers
      */
     modifier onlyWallet() {
-        if (msg.sender != address(this))
-            throw;
+        require(msg.sender == address(this));
         _;
     }
 
     modifier ownerDoesNotExist(address owner) {
-        if (isOwner[owner])
-            throw;
+        require(!isOwner[owner]);
         _;
     }
 
     modifier ownerExists(address owner) {
-        if (!isOwner[owner])
-            throw;
+        require(isOwner[owner]);
         _;
     }
 
     modifier transactionExists(uint transactionId) {
-        if (transactions[transactionId].destination == 0)
-            throw;
+        require(transactions[transactionId].destination != 0);
         _;
     }
 
     modifier confirmed(uint transactionId, address owner) {
-        if (!confirmations[transactionId][owner])
-            throw;
+        require(confirmations[transactionId][owner]);
         _;
     }
 
     modifier notConfirmed(uint transactionId, address owner) {
-        if (confirmations[transactionId][owner])
-            throw;
+        require(!confirmations[transactionId][owner]);
         _;
     }
 
     modifier notExecuted(uint transactionId) {
-        if (transactions[transactionId].executed)
-            throw;
+        require(!transactions[transactionId].executed);
         _;
     }
 
     modifier notNull(address _address) {
-        if (_address == 0)
-            throw;
+        require(_address != 0);
         _;
     }
 
@@ -100,31 +93,23 @@ contract MultiSigWallet {
         _;
     }
 
-    /// @dev Fallback function allows to deposit ether.
-    function()
-        payable
-    {
-        if (msg.value > 0)
-            Deposit(msg.sender, msg.value);
-    }
-
     /*
      * Public functions
      */
     /// @dev Contract constructor sets initial owners and required number of confirmations.
     /// @param _owners List of initial owners.
     /// @param _required Number of required confirmations.
-    function MultiSigWallet(address[] _owners, uint _required)
+    function MultiSigWallet(address _tokenContract, address[] _owners, uint _required)
         public
         validRequirement(_owners.length, _required)
     {
         for (uint i=0; i<_owners.length; i++) {
-            if (isOwner[_owners[i]] || _owners[i] == 0)
-                throw;
+            require(!isOwner[_owners[i]] && _owners[i] > 0);
             isOwner[_owners[i]] = true;
         }
         owners = _owners;
         required = _required;
+        tokenContract = _tokenContract;
     }
 
     /// @dev Allows to add a new owner. Transaction has to be sent by wallet.
@@ -200,6 +185,8 @@ contract MultiSigWallet {
         public
         returns (uint transactionId)
     {
+        /// Should run token transfers or meta-functions on itself
+        require(destination == tokenContract || destination == address(this));
         transactionId = addTransaction(destination, value, data);
         confirmTransaction(transactionId);
     }
@@ -330,6 +317,17 @@ contract MultiSigWallet {
     {
         return owners;
     }
+
+    /// @dev Returns token contract address.
+    /// @return token contract address.
+    function getTokenContract()
+        public
+        constant
+        returns (address)
+    {
+        return tokenContract;
+    }
+
 
     /// @dev Returns array with owner addresses, which confirmed transaction.
     /// @param transactionId Transaction ID.

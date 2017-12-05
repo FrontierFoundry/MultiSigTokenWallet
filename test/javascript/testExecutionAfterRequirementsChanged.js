@@ -1,7 +1,13 @@
 const MultiSigWallet = artifacts.require('MultiSigWallet')
+const TestToken = artifacts.require('TestToken')
+
 const web3 = MultiSigWallet.web3
-const deployMultisig = (owners, confirmations) => {
-    return MultiSigWallet.new(owners, confirmations)
+const deployMultisig = (tokenAddress, owners, confirmations) => {
+    return MultiSigWallet.new(tokenAddress, owners, confirmations)
+}
+
+const deployToken = () => {
+    return TestToken.new()
 }
 
 const utils = require('./utils')
@@ -12,18 +18,15 @@ contract('MultiSigWallet', (accounts) => {
     const requiredConfirmations = 2
 
     beforeEach(async () => {
-        multisigInstance = await deployMultisig([accounts[0], accounts[1], accounts[2]], requiredConfirmations)
+        tokenInstance = await deployToken()
+        assert.ok(tokenInstance)
+        multisigInstance = await deployMultisig(tokenInstance.address, [accounts[0], accounts[1], accounts[2]], requiredConfirmations)
         assert.ok(multisigInstance)
+        assert.equal(await multisigInstance.getTokenContract(), tokenInstance.address)
     })
 
     it('test execution after requirements changed', async () => {
-        const deposit = 1000
-        
-        // Send money to wallet contract
-        await new Promise((resolve, reject) => web3.eth.sendTransaction({to: multisigInstance.address, value: deposit, from: accounts[0]}, e => (e ? reject(e) : resolve())))
-        const balance = await utils.balanceOf(web3, multisigInstance.address)
-        assert.equal(balance.valueOf(), deposit)
-        
+        const deposit = 1000        
         // Add owner wa_4
         const addOwnerData = multisigInstance.contract.addOwner.getData(accounts[3])
         const transactionId = utils.getParamFromTxEvent(

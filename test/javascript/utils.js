@@ -38,14 +38,14 @@ function balanceOf(web3, account) {
     return new Promise((resolve, reject) => web3.eth.getBalance(account, (e, balance) => (e ? reject(e) : resolve(balance))))
 }
 
-async function assertThrowsAsynchronously(test, error) {
+async function assertThrowsAsynchronously(test, errorMessage) {
     try {
         await test();
     } catch(e) {
-        if (!error || e instanceof error)
+        if (!errorMessage || e.message === errorMessage)
             return "everything is fine";
     }
-    throw new Error("Missing rejection" + (error ? " with "+error.name : ""));
+    throw new Error("Missing rejection" + errorMessage);
 }
 
 Object.assign(exports, {
