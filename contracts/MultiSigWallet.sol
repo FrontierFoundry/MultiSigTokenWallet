@@ -1,4 +1,113 @@
-pragma solidity 0.4.15;
+pragma solidity 0.4.18;
+
+/// @title Test token contract - Allows testing of token transfers with multisig wallet.
+contract TestToken {
+
+    /*
+     *  Events
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
+
+    /*
+     *  Constants
+     */
+    string constant public name = "Test Token";
+    string constant public symbol = "TT";
+    uint8 constant public decimals = 1;
+
+    /*
+     *  Storage
+     */
+    mapping (address => uint256) balances;
+    mapping (address => mapping (address => uint256)) allowed;
+    uint256 public totalSupply;
+
+    /*
+     * Public functions
+     */
+    /// @dev Issues new tokens.
+    /// @param _to Address of token receiver.
+    /// @param _value Number of tokens to issue.
+    function issueTokens(address _to, uint256 _value)
+        public
+    {
+        balances[_to] += _value;
+        totalSupply += _value;
+    }
+
+    /// @dev Transfers sender's tokens to a given address. Returns success.
+    /// @param _to Address of token receiver.
+    /// @param _value Number of tokens to transfer.
+    /// @return Returns success of function call.
+    function transfer(address _to, uint256 _value)
+        public
+        returns (bool success)
+    {
+        if (balances[msg.sender] < _value) {
+            throw;
+        }
+        balances[msg.sender] -= _value;
+        balances[_to] += _value;
+        Transfer(msg.sender, _to, _value);
+        return true;
+    }
+
+    /// @dev Allows allowed third party to transfer tokens from one address to another. Returns success.
+    /// @param _from Address from where tokens are withdrawn.
+    /// @param _to Address to where tokens are sent.
+    /// @param _value Number of tokens to transfer.
+    /// @return Returns success of function call.
+    function transferFrom(address _from, address _to, uint256 _value)
+        public
+        returns (bool success)
+    {
+        if (balances[_from] < _value || allowed[_from][msg.sender] < _value) {
+            throw;
+        }
+        balances[_to] += _value;
+        balances[_from] -= _value;
+        allowed[_from][msg.sender] -= _value;
+        Transfer(_from, _to, _value);
+        return true;
+    }
+
+    /// @dev Sets approved amount of tokens for spender. Returns success.
+    /// @param _spender Address of allowed account.
+    /// @param _value Number of approved tokens.
+    /// @return Returns success of function call.
+    function approve(address _spender, uint256 _value)
+        public
+        returns (bool success)
+    {
+        allowed[msg.sender][_spender] = _value;
+        Approval(msg.sender, _spender, _value);
+        return true;
+    }
+
+    /// @dev Returns number of allowed tokens for given address.
+    /// @param _owner Address of token owner.
+    /// @param _spender Address of token spender.
+    /// @return Returns remaining allowance for spender.
+    function allowance(address _owner, address _spender)
+        constant
+        public
+        returns (uint256 remaining)
+    {
+        return allowed[_owner][_spender];
+    }
+
+    /// @dev Returns number of tokens owned by given address.
+    /// @param _owner Address of token owner.
+    /// @return Returns balance of owner.
+    function balanceOf(address _owner)
+        constant
+        public
+        returns (uint256 balance)
+    {
+        return balances[_owner];
+    }
+}
 
 
 /// @title Multisignature wallet - Allows multiple parties to agree on transactions before execution.
@@ -32,12 +141,14 @@ contract MultiSigWallet {
     address[] public owners;
     uint public required;
     uint public transactionCount;
+    address tokenContract;
 
     struct Transaction {
         address destination;
         uint value;
         bytes data;
         bool executed;
+        bool isTokenTransfer;
     }
 
     /*
@@ -100,21 +211,13 @@ contract MultiSigWallet {
         _;
     }
 
-    /// @dev Fallback function allows to deposit ether.
-    function()
-        payable
-    {
-        if (msg.value > 0)
-            Deposit(msg.sender, msg.value);
-    }
-
     /*
      * Public functions
      */
     /// @dev Contract constructor sets initial owners and required number of confirmations.
     /// @param _owners List of initial owners.
     /// @param _required Number of required confirmations.
-    function MultiSigWallet(address[] _owners, uint _required)
+    function MultiSigWallet(address _tokenContract, address[] _owners, uint _required)
         public
         validRequirement(_owners.length, _required)
     {
@@ -125,6 +228,7 @@ contract MultiSigWallet {
         }
         owners = _owners;
         required = _required;
+        tokenContract = _tokenContract;
     }
 
     /// @dev Allows to add a new owner. Transaction has to be sent by wallet.
@@ -196,11 +300,18 @@ contract MultiSigWallet {
     /// @param value Transaction ether value.
     /// @param data Transaction data payload.
     /// @return Returns transaction ID.
-    function submitTransaction(address destination, uint value, bytes data)
+    function submitTransaction(address destination, uint value, bytes data, bool isTokenTransfer)
         public
         returns (uint transactionId)
     {
-        transactionId = addTransaction(destination, value, data);
+        if (isTokenTransfer) {
+            require(value > 0);
+        }
+        else {
+            require(value == 0);
+            require(destination == address(this));
+        }
+        transactionId = addTransaction(destination, value, data, isTokenTransfer);
         confirmTransaction(transactionId);
     }
 
@@ -240,7 +351,14 @@ contract MultiSigWallet {
         if (isConfirmed(transactionId)) {
             Transaction tx = transactions[transactionId];
             tx.executed = true;
-            if (tx.destination.call.value(tx.value)(tx.data))
+            bool executionResult = false;
+            if (tx.isTokenTransfer) {
+                TestToken tokenContractInstance = TestToken(tokenContract);
+                executionResult = tokenContractInstance.transfer(tx.destination, tx.value);
+            } else {
+                executionResult = tx.destination.call.value(0)(tx.data);
+            }
+            if (executionResult)
                 Execution(transactionId);
             else {
                 ExecutionFailure(transactionId);
@@ -274,7 +392,7 @@ contract MultiSigWallet {
     /// @param value Transaction ether value.
     /// @param data Transaction data payload.
     /// @return Returns transaction ID.
-    function addTransaction(address destination, uint value, bytes data)
+    function addTransaction(address destination, uint value, bytes data, bool isTokenTransfer)
         internal
         notNull(destination)
         returns (uint transactionId)
@@ -284,7 +402,8 @@ contract MultiSigWallet {
             destination: destination,
             value: value,
             data: data,
-            executed: false
+            executed: false,
+            isTokenTransfer: isTokenTransfer
         });
         transactionCount += 1;
         Submission(transactionId);
@@ -330,6 +449,17 @@ contract MultiSigWallet {
     {
         return owners;
     }
+
+    /// @dev Returns token contract address.
+    /// @return token contract address.
+    function getTokenContract()
+        public
+        constant
+        returns (address)
+    {
+        return tokenContract;
+    }
+
 
     /// @dev Returns array with owner addresses, which confirmed transaction.
     /// @param transactionId Transaction ID.
